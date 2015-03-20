@@ -160,6 +160,10 @@
 			"Rev": "74bec4b83f6d45d1402c1e9d94c0c29e39f6e0ea"
 		},
 		{
+			"ImportPath": "github.com/jbenet/go-migrate",
+			"Rev": "593be6b4b24a87e4d380e54339721ad4b4c6543c"
+		},
+		{
 			"ImportPath": "github.com/jbenet/go-msgio",
 			"Rev": "dbae89193876910c736b2ce1291fa8bbcf299d77"
 		},
@@ -222,6 +226,10 @@
 			"Rev": "156a073208e131d7d2e212cb749feae7c339e846"
 		},
 		{
+			"ImportPath": "github.com/whyrusleeping/go-metrics",
+			"Rev": "1cd8009604ec2238b5a71305a0ecd974066e0e16"
+		},
+		{
 			"ImportPath": "golang.org/x/crypto/blowfish",
 			"Rev": "b7d6bf2c61544745a02f83dec90393985fc3a065"
 		},
@@ -232,10 +240,6 @@
 		{
 			"ImportPath": "golang.org/x/net/context",
 			"Rev": "7dbad50ab5b31073856416cdcfeb2796d682f844"
-		},
-		{
-			"ImportPath": "github.com/whyrusleeping/go-metrics",
-			"Rev": "1cd8009604ec2238b5a71305a0ecd974066e0e16"
 		},
 		{
 			"ImportPath": "gopkg.in/fsnotify.v1",
