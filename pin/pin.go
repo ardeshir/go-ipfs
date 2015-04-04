@@ -99,12 +99,12 @@ func (p *pinner) Pin(node *mdag.Node, recurse bool) error {
 			p.directPin.RemoveBlock(k)
 		}
 
-		p.recursePin.AddBlock(k)
-
 		err := p.pinLinks(node)
 		if err != nil {
 			return err
 		}
+
+		p.recursePin.AddBlock(k)
 	} else {
 		if p.recursePin.HasKey(k) {
 			return fmt.Errorf("%s already pinned recursively", k.B58String())
