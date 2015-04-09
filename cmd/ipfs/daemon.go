@@ -120,7 +120,7 @@ func daemonFunc(req cmds.Request, res cmds.Response) {
 	// sure we are permitted to access the resources (datastore, etc.)
 	repo, err := fsrepo.Open(req.Context().ConfigRoot)
 	if err != nil {
-		res.SetError(debugerror.Errorf("Couldn't obtain lock. Is another daemon already running?"), cmds.ErrNormal)
+		res.SetError(err, cmds.ErrNormal)
 		return
 	}
 
