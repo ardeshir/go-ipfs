@@ -6,6 +6,10 @@ import (
 	"io"
 	"path"
 	"strings"
+	"time"
+
+	"github.com/ipfs/go-ipfs/Godeps/_workspace/src/github.com/cheggaaa/pb"
+	context "github.com/ipfs/go-ipfs/Godeps/_workspace/src/golang.org/x/net/context"
 
 	cmds "github.com/ipfs/go-ipfs/commands"
 	files "github.com/ipfs/go-ipfs/commands/files"
@@ -17,8 +21,6 @@ import (
 	pinning "github.com/ipfs/go-ipfs/pin"
 	ft "github.com/ipfs/go-ipfs/unixfs"
 	u "github.com/ipfs/go-ipfs/util"
-
-	"github.com/ipfs/go-ipfs/Godeps/_workspace/src/github.com/cheggaaa/pb"
 )
 
 // Error indicating the max depth has been exceded.
@@ -227,7 +229,9 @@ func addNode(n *core.IpfsNode, node *dag.Node) error {
 		return err
 	}
 
-	err = n.Pinning.Pin(node, true) // ensure we keep it
+	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
+	defer cancel()
+	err = n.Pinning.Pin(ctx, node, true) // ensure we keep it
 	if err != nil {
 		return err
 	}

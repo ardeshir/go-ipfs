@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"time"
 
 	ds "github.com/ipfs/go-ipfs/Godeps/_workspace/src/github.com/jbenet/go-datastore"
 	nsds "github.com/ipfs/go-ipfs/Godeps/_workspace/src/github.com/jbenet/go-datastore/namespace"
@@ -33,8 +32,8 @@ const (
 
 type Pinner interface {
 	IsPinned(util.Key) bool
-	Pin(*mdag.Node, bool) error
-	Unpin(util.Key, bool) error
+	Pin(context.Context, *mdag.Node, bool) error
+	Unpin(context.Context, util.Key, bool) error
 	Flush() error
 	GetManual() ManualPinner
 	DirectKeys() []util.Key
@@ -82,7 +81,7 @@ func NewPinner(dstore ds.ThreadSafeDatastore, serv mdag.DAGService) Pinner {
 }
 
 // Pin the given node, optionally recursive
-func (p *pinner) Pin(node *mdag.Node, recurse bool) error {
+func (p *pinner) Pin(ctx context.Context, node *mdag.Node, recurse bool) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	k, err := node.Key()
@@ -99,7 +98,7 @@ func (p *pinner) Pin(node *mdag.Node, recurse bool) error {
 			p.directPin.RemoveBlock(k)
 		}
 
-		err := p.pinLinks(node)
+		err := p.pinLinks(ctx, node)
 		if err != nil {
 			return err
 		}
@@ -115,18 +114,18 @@ func (p *pinner) Pin(node *mdag.Node, recurse bool) error {
 }
 
 // Unpin a given key
-func (p *pinner) Unpin(k util.Key, recursive bool) error {
+func (p *pinner) Unpin(ctx context.Context, k util.Key, recursive bool) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 	if p.recursePin.HasKey(k) {
 		if recursive {
 			p.recursePin.RemoveBlock(k)
-			node, err := p.dserv.Get(k)
+			node, err := p.dserv.Get(ctx, k)
 			if err != nil {
 				return err
 			}
 
-			return p.unpinLinks(node)
+			return p.unpinLinks(ctx, node)
 		} else {
 			return fmt.Errorf("%s is pinned recursively", k)
 		}
@@ -140,9 +139,9 @@ func (p *pinner) Unpin(k util.Key, recursive bool) error {
 	}
 }
 
-func (p *pinner) unpinLinks(node *mdag.Node) error {
+func (p *pinner) unpinLinks(ctx context.Context, node *mdag.Node) error {
 	for _, l := range node.Links {
-		node, err := l.GetNode(p.dserv)
+		node, err := l.GetNode(ctx, p.dserv)
 		if err != nil {
 			return err
 		}
@@ -154,7 +153,7 @@ func (p *pinner) unpinLinks(node *mdag.Node) error {
 
 		p.recursePin.RemoveBlock(k)
 
-		err = p.unpinLinks(node)
+		err = p.unpinLinks(ctx, node)
 		if err != nil {
 			return err
 		}
@@ -162,27 +161,24 @@ func (p *pinner) unpinLinks(node *mdag.Node) error {
 	return nil
 }
 
-func (p *pinner) pinIndirectRecurse(node *mdag.Node) error {
+func (p *pinner) pinIndirectRecurse(ctx context.Context, node *mdag.Node) error {
 	k, err := node.Key()
 	if err != nil {
 		return err
 	}
 
 	p.indirPin.Increment(k)
-	return p.pinLinks(node)
+	return p.pinLinks(ctx, node)
 }
 
-func (p *pinner) pinLinks(node *mdag.Node) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*60)
-	defer cancel()
-
+func (p *pinner) pinLinks(ctx context.Context, node *mdag.Node) error {
 	for _, ng := range p.dserv.GetDAG(ctx, node) {
 		subnode, err := ng.Get(ctx)
 		if err != nil {
 			// TODO: Maybe just log and continue?
 			return err
 		}
-		err = p.pinIndirectRecurse(subnode)
+		err = p.pinIndirectRecurse(ctx, subnode)
 		if err != nil {
 			return err
 		}
