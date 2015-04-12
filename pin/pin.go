@@ -37,7 +37,7 @@ type Pinner interface {
 	Flush() error
 	GetManual() ManualPinner
 	DirectKeys() []util.Key
-	IndirectKeys() []util.Key
+	IndirectKeys() map[util.Key]int
 	RecursiveKeys() []util.Key
 }
 
@@ -151,7 +151,7 @@ func (p *pinner) unpinLinks(ctx context.Context, node *mdag.Node) error {
 			return err
 		}
 
-		p.recursePin.RemoveBlock(k)
+		p.indirPin.Decrement(k)
 
 		err = p.unpinLinks(ctx, node)
 		if err != nil {
@@ -252,8 +252,8 @@ func (p *pinner) DirectKeys() []util.Key {
 }
 
 // IndirectKeys returns a slice containing the indirectly pinned keys
-func (p *pinner) IndirectKeys() []util.Key {
-	return p.indirPin.Set().GetKeys()
+func (p *pinner) IndirectKeys() map[util.Key]int {
+	return p.indirPin.GetRefs()
 }
 
 // RecursiveKeys returns a slice containing the recursively pinned keys

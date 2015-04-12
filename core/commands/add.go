@@ -1,12 +1,10 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"path"
 	"strings"
-	"time"
 
 	"github.com/ipfs/go-ipfs/Godeps/_workspace/src/github.com/cheggaaa/pb"
 	context "github.com/ipfs/go-ipfs/Godeps/_workspace/src/golang.org/x/net/context"
@@ -18,7 +16,6 @@ import (
 	importer "github.com/ipfs/go-ipfs/importer"
 	"github.com/ipfs/go-ipfs/importer/chunk"
 	dag "github.com/ipfs/go-ipfs/merkledag"
-	pinning "github.com/ipfs/go-ipfs/pin"
 	ft "github.com/ipfs/go-ipfs/unixfs"
 	u "github.com/ipfs/go-ipfs/util"
 )
@@ -106,8 +103,21 @@ remains to be implemented.
 					return
 				}
 
-				_, err = addFile(n, file, outChan, progress, wrap)
+				rootnd, err := addFile(n, file, outChan, progress, wrap)
 				if err != nil {
+					log.Warning(err)
+					return
+				}
+
+				err = n.Pinning.Pin(context.Background(), rootnd, true)
+				if err != nil {
+					log.Warning(err)
+					return
+				}
+
+				err = n.Pinning.Flush()
+				if err != nil {
+					log.Warning(err)
 					return
 				}
 			}
@@ -200,15 +210,10 @@ remains to be implemented.
 }
 
 func add(n *core.IpfsNode, readers []io.Reader) ([]*dag.Node, error) {
-	mp, ok := n.Pinning.(pinning.ManualPinner)
-	if !ok {
-		return nil, errors.New("invalid pinner type! expected manual pinner")
-	}
-
 	dagnodes := make([]*dag.Node, 0)
 
 	for _, reader := range readers {
-		node, err := importer.BuildDagFromReader(reader, n.DAG, mp, chunk.DefaultSplitter)
+		node, err := importer.BuildDagFromReader(reader, n.DAG, nil, chunk.DefaultSplitter)
 		if err != nil {
 			return nil, err
 		}
@@ -225,13 +230,6 @@ func add(n *core.IpfsNode, readers []io.Reader) ([]*dag.Node, error) {
 
 func addNode(n *core.IpfsNode, node *dag.Node) error {
 	err := n.DAG.AddRecursive(node) // add the file to the graph + local storage
-	if err != nil {
-		return err
-	}
-
-	ctx, cancel := context.WithTimeout(context.TODO(), time.Minute)
-	defer cancel()
-	err = n.Pinning.Pin(ctx, node, true) // ensure we keep it
 	if err != nil {
 		return err
 	}
