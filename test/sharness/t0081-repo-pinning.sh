@@ -159,15 +159,15 @@ test_expect_success "pin lists look good" '
 	test_must_fail grep "$HASH_FILE3" ls_indirect &&
 	test_must_fail grep "$HASH_FILE3" ls_direct   &&
 	test_must_fail grep "$HASH_FILE3" ls_recursive &&
-		             grep "$HASH_FILE4" ls_indirect &&
+	               grep "$HASH_FILE4" ls_indirect &&
 	test_must_fail grep "$HASH_FILE4" ls_direct   &&
 	test_must_fail grep "$HASH_FILE4" ls_recursive &&
 	test_must_fail grep "$HASH_FILE5" ls_indirect &&
 	test_must_fail grep "$HASH_FILE5" ls_direct   &&
 	test_must_fail grep "$HASH_FILE5" ls_recursive &&
-	test_must_fail grep "$HASH_FILE6" ls_indirect &&
-	               grep "$HASH_FILE6" ls_direct   &&
-	               grep "$HASH_FILE6" ls_recursive
+	               grep "$HASH_FILE6" ls_indirect &&
+	test_must_fail grep "$HASH_FILE6" ls_direct   &&
+	test_must_fail grep "$HASH_FILE6" ls_recursive
 '
 
 test_expect_success "'ipfs repo gc' succeeds" '
