@@ -8,9 +8,58 @@ test_description="Test ipfs repo pinning"
 
 . lib/test-lib.sh
 
-test_init_ipfs
-test_launch_ipfs_daemon
 
+
+function test_pin_flag() {
+	object=$1
+	ptype=$2
+	expect=$3
+
+	echo "test_pin_flag" $@
+
+	ipfs-pin-stat "$object" | grep "$ptype"
+	actual=$?
+
+	if [ "$expect" = "true" ]; then
+		if [ "$actual" != "0" ]; then
+			echo "$object should be pinned $ptype ($actual)"
+			return 1
+		fi
+	else
+		if [ "$actual" != "1" ]; then
+			echo "$object should NOT be pinned $ptype ($actual)"
+			return 1
+		fi
+	fi
+	return 0
+}
+
+function test_pin() {
+	object=$1
+	shift
+
+	test_str_contains "recursive" $@
+	[ "$?" = "0" ] && r="true" || r="false"
+
+	test_str_contains "indirect" $@
+	[ "$?" = "0" ] && i="true" || i="false"
+
+	test_str_contains "direct" $@
+	[ "$?" = "0" ] && d="true" || d="false"
+
+	test_pin_flag "$object" "recursive" $r || return 1
+	test_pin_flag "$object" "indirect"  $i || return 1
+	test_pin_flag "$object" "direct"    $d || return 1
+	return 0
+}
+
+
+test_init_ipfs
+
+# test runs much faster without daemon.
+# TODO: turn this back on after:
+# https://github.com/ipfs/go-ipfs/issues/1075
+# test_launch_ipfs_daemon
 
 HASH_FILE6="QmRsBC3Y2G6VRPYGAVpZczx1W7Xw54MtM1NcLKTkn6rx3U"
 HASH_FILE5="QmaN3PtyP8DcVGHi3Q2Fcp7CfAFVcVXKddWbHoNvaA41zf"
@@ -18,26 +67,37 @@ HASH_FILE4="QmV1aiVgpDknKQugrK59uBUbMrPnsQM1F9FXbFcfgEvUvH"
 HASH_FILE3="QmZrr4Pzqp3NnMzMfbMhNe7LghfoUFHVx7c9Po9GZrhKZ7"
 HASH_FILE2="QmSkjTornLY72QhmK9NvAz26815pTaoAL42rF8Qi3w2WBP"
 HASH_FILE1="QmbgX4aXhSSY88GHmPQ4roizD8wFwPX8jzTLjc8VAp89x4"
-HASH_DIR3="QmRsCaNBMkweZ9vHT5PJRd2TT9rtNKEKyuognCEVxZxF1H"
 HASH_DIR4="QmW98gV71Ns4bX7QbgWAqLiGF3SDC1JpveZSgBh4ExaSAd"
-HASH_DIR2="QmTUTQAgeVfughDSFukMZLbfGvetDJY7Ef5cDXkKK4abKC"
+HASH_DIR3="QmRsCaNBMkweZ9vHT5PJRd2TT9rtNKEKyuognCEVxZxF1H"
+HASH_DIR2="QmW98gV71Ns4bX7QbgWAqLiGF3SDC1JpveZSgBh4ExaSAd"
 HASH_DIR1="QmNyZVFbgvmzguS2jVMRb8PQMNcCMJrn9E3doDhBbcPNTY"
+
+DIR1="dir1"
+DIR2="dir1/dir2"
+DIR4="dir1/dir2/dir4"
+DIR3="dir1/dir3"
+FILE1="dir1/file1"
+FILE2="dir1/file2"
+FILE3="dir1/file3"
+FILE4="dir1/dir2/file4"
+FILE6="dir1/dir2/dir4/file6"
+FILE5="dir1/dir3/file5"
 
 test_expect_success "'ipfs add dir' succeeds" '
 	mkdir dir1 &&
 	mkdir dir1/dir2 &&
-	mkdir dir1/dir3 &&
 	mkdir dir1/dir2/dir4 &&
+	mkdir dir1/dir3 &&
 	echo "some text 1" >dir1/file1 &&
-	echo "some text 1" >dir1/dir2/file1 &&
-	echo "some text 1" >dir1/dir2/dir4/file1 &&
 	echo "some text 2" >dir1/file2 &&
-	echo "some text 2" >dir1/dir3/file2 &&
-	echo "some text 2" >dir1/dir2/dir4/file2 &&
 	echo "some text 3" >dir1/file3 &&
+	echo "some text 1" >dir1/dir2/file1 &&
 	echo "some text 4" >dir1/dir2/file4 &&
-	echo "some text 5" >dir1/dir3/file5 &&
+	echo "some text 1" >dir1/dir2/dir4/file1 &&
+	echo "some text 2" >dir1/dir2/dir4/file2 &&
 	echo "some text 6" >dir1/dir2/dir4/file6 &&
+	echo "some text 2" >dir1/dir3/file2 &&
+	echo "some text 5" >dir1/dir3/file5 &&
 	ipfs add -q -r dir1 | tail -n1 >actual1 &&
 	echo "$HASH_DIR1" >expected1 &&
 	test_cmp actual1 expected1
@@ -57,25 +117,23 @@ test_expect_success "objects are there" '
 '
 
 test_expect_success "added dir was pinned recursively" '
-	ipfs pin ls -type=recursive >actual2 &&
-	grep "$HASH_DIR1" actual2
+	test_pin_flag $HASH_DIR1 recursive true
 '
 
 test_expect_success "rest were pinned indirectly" '
-	ipfs pin ls -type=indirect >actual3 &&
-	grep "$HASH_FILE6" actual3 &&
-	grep "$HASH_FILE5" actual3 &&
-	grep "$HASH_FILE4" actual3 &&
-	grep "$HASH_FILE3" actual3 &&
-	grep "$HASH_FILE2" actual3 &&
-	grep "$HASH_FILE1" actual3 &&
-	grep "$HASH_DIR3" actual3 &&
-	grep "$HASH_DIR4" actual3 &&
-	grep "$HASH_DIR2" actual3
+	test_pin_flag "$HASH_FILE6" indirect true
+	test_pin_flag "$HASH_FILE5" indirect true
+	test_pin_flag "$HASH_FILE4" indirect true
+	test_pin_flag "$HASH_FILE3" indirect true
+	test_pin_flag "$HASH_FILE2" indirect true
+	test_pin_flag "$HASH_FILE1" indirect true
+	test_pin_flag "$HASH_DIR3" indirect true
+	test_pin_flag "$HASH_DIR4" indirect true
+	test_pin_flag "$HASH_DIR2" indirect true
 '
 
 test_expect_success "added dir was NOT pinned indirectly" '
-	test_must_fail grep "$HASH_DIR1" actual3
+	test_pin_flag "$HASH_DIR1" indirect false
 '
 
 test_expect_success "nothing is pinned directly" '
@@ -89,16 +147,19 @@ test_expect_success "'ipfs repo gc' succeeds" '
 '
 
 test_expect_success "objects are still there" '
-	ipfs cat "$HASH_FILE6" >FILE6_b && test_cmp FILE6_a FILE6_b &&
-	ipfs cat "$HASH_FILE5" >FILE5_b && test_cmp FILE5_a FILE5_b &&
-	ipfs cat "$HASH_FILE4" >FILE4_b && test_cmp FILE4_a FILE4_b &&
-	ipfs cat "$HASH_FILE3" >FILE3_b && test_cmp FILE3_a FILE3_b &&
-	ipfs cat "$HASH_FILE2" >FILE2_b && test_cmp FILE2_a FILE2_b &&
-	ipfs cat "$HASH_FILE1" >FILE1_b && test_cmp FILE1_a FILE1_b &&
-	ipfs ls "$HASH_DIR3"   >DIR3_b &&  test_cmp DIR3_a  DIR3_b &&
-	ipfs ls "$HASH_DIR4"   >DIR4_b &&  test_cmp DIR4_a  DIR4_b &&
-	ipfs ls "$HASH_DIR2"   >DIR2_b &&  test_cmp DIR2_a  DIR2_b &&
-	ipfs ls "$HASH_DIR1"   >DIR1_b &&  test_cmp DIR1_a  DIR1_b
+	cat FILE6_a FILE5_a FILE4_a FILE3_a FILE2_a FILE1_a >expected45 &&
+	cat DIR3_a DIR4_a DIR2_a DIR1_a >>expected45 &&
+	ipfs cat "$HASH_FILE6"  >actual45 &&
+	ipfs cat "$HASH_FILE5" >>actual45 &&
+	ipfs cat "$HASH_FILE4" >>actual45 &&
+	ipfs cat "$HASH_FILE3" >>actual45 &&
+	ipfs cat "$HASH_FILE2" >>actual45 &&
+	ipfs cat "$HASH_FILE1" >>actual45 &&
+	ipfs ls "$HASH_DIR3"   >>actual45 &&
+	ipfs ls "$HASH_DIR4"   >>actual45 &&
+	ipfs ls "$HASH_DIR2"   >>actual45 &&
+	ipfs ls "$HASH_DIR1"   >>actual45 &&
+	test_cmp expected45 actual45
 '
 
 test_expect_success "remove dir recursive pin succeeds" '
@@ -108,20 +169,16 @@ test_expect_success "remove dir recursive pin succeeds" '
 '
 
 test_expect_success "none are pinned any more" '
-	ipfs pin ls -type=recursive >actual6 &&
-	ipfs pin ls -type=indirect >>actual6 &&
-	ipfs pin ls -type=direct >>actual6 &&
-	ipfs pin ls -type=all >>actual6 &&
-	test_must_fail grep "$HASH_FILE6" actual6 &&
-	test_must_fail grep "$HASH_FILE5" actual6 &&
-	test_must_fail grep "$HASH_FILE4" actual6 &&
-	test_must_fail grep "$HASH_FILE3" actual6 &&
-	test_must_fail grep "$HASH_FILE2" actual6 &&
-	test_must_fail grep "$HASH_FILE1" actual6 &&
-	test_must_fail grep "$HASH_DIR3"  actual6 &&
-	test_must_fail grep "$HASH_DIR4"  actual6 &&
-	test_must_fail grep "$HASH_DIR2"  actual6 &&
-	test_must_fail grep "$HASH_DIR1"  actual6
+	test_pin "$HASH_FILE6" &&
+	test_pin "$HASH_FILE5" &&
+	test_pin "$HASH_FILE4" &&
+	test_pin "$HASH_FILE3" &&
+	test_pin "$HASH_FILE2" &&
+	test_pin "$HASH_FILE1" &&
+	test_pin "$HASH_DIR3"  &&
+	test_pin "$HASH_DIR4"  &&
+	test_pin "$HASH_DIR2"  &&
+	test_pin "$HASH_DIR1"
 '
 
 test_expect_success "pin some directly and indirectly" '
@@ -135,56 +192,41 @@ test_expect_success "pin some directly and indirectly" '
 '
 
 test_expect_success "pin lists look good" '
-	ipfs pin ls -type=recursive >ls_recursive &&
-	ipfs pin ls -type=indirect >ls_indirect &&
-	ipfs pin ls -type=direct >ls_direct &&
-	test_must_fail grep "$HASH_DIR1" ls_indirect &&
-	               grep "$HASH_DIR1" ls_direct   &&
-	test_must_fail grep "$HASH_DIR1" ls_recursive &&
-	test_must_fail grep "$HASH_DIR2" ls_indirect &&
-	test_must_fail grep "$HASH_DIR2" ls_direct   &&
-                 grep "$HASH_DIR2" ls_recursive &&
-	test_must_fail grep "$HASH_DIR3" ls_indirect &&
-	test_must_fail grep "$HASH_DIR3" ls_direct   &&
-  test_must_fail grep "$HASH_DIR3" ls_recursive &&
-	               grep "$HASH_DIR4" ls_indirect &&
-	test_must_fail grep "$HASH_DIR4" ls_direct   &&
-  test_must_fail grep "$HASH_DIR4" ls_recursive &&
-	               grep "$HASH_FILE1" ls_indirect &&
-	               grep "$HASH_FILE1" ls_direct   &&
-	test_must_fail grep "$HASH_FILE1" ls_recursive &&
-	               grep "$HASH_FILE2" ls_indirect &&
-	test_must_fail grep "$HASH_FILE2" ls_direct   &&
-	test_must_fail grep "$HASH_FILE2" ls_recursive &&
-	test_must_fail grep "$HASH_FILE3" ls_indirect &&
-	test_must_fail grep "$HASH_FILE3" ls_direct   &&
-	test_must_fail grep "$HASH_FILE3" ls_recursive &&
-	               grep "$HASH_FILE4" ls_indirect &&
-	test_must_fail grep "$HASH_FILE4" ls_direct   &&
-	test_must_fail grep "$HASH_FILE4" ls_recursive &&
-	test_must_fail grep "$HASH_FILE5" ls_indirect &&
-	test_must_fail grep "$HASH_FILE5" ls_direct   &&
-	test_must_fail grep "$HASH_FILE5" ls_recursive &&
-	               grep "$HASH_FILE6" ls_indirect &&
-	test_must_fail grep "$HASH_FILE6" ls_direct   &&
-	test_must_fail grep "$HASH_FILE6" ls_recursive
+	test_pin $HASH_DIR1  direct &&
+	test_pin $HASH_DIR2  recursive &&
+	test_pin $HASH_DIR3  &&
+	test_pin $HASH_DIR4  indirect &&
+	test_pin $HASH_FILE1 indirect direct &&
+	test_pin $HASH_FILE2 indirect &&
+	test_pin $HASH_FILE3 &&
+	test_pin $HASH_FILE4 indirect &&
+	test_pin $HASH_FILE5 &&
+	test_pin $HASH_FILE6 indirect
 '
 
 test_expect_success "'ipfs repo gc' succeeds" '
 	ipfs repo gc >gc_out_actual2 &&
 	grep "removed $HASH_FILE3" gc_out_actual2 &&
 	grep "removed $HASH_FILE5" gc_out_actual2 &&
-	grep "removed $HASH_DIR3" gc_out_actual2
+	grep "removed $HASH_DIR3" gc_out_actual2 &&
+	cat gc_out_actual2
 '
 
 test_expect_success "some objects are still there" '
-	ipfs cat "$HASH_FILE6" >FILE6_b && test_cmp FILE6_a FILE6_b &&
-	ipfs cat "$HASH_FILE4" >FILE4_b && test_cmp FILE4_a FILE4_b &&
-	ipfs cat "$HASH_FILE2" >FILE2_b && test_cmp FILE2_a FILE2_b &&
-	ipfs cat "$HASH_FILE1" >FILE1_b && test_cmp FILE1_a FILE1_b &&
-	ipfs ls "$HASH_DIR4"   >DIR4_b &&  test_cmp DIR4_a  DIR4_b &&
-	ipfs ls "$HASH_DIR2"   >DIR2_b &&  test_cmp DIR2_a  DIR2_b &&
-	ipfs ls "$HASH_DIR1"   >DIR1_b &&  test_cmp DIR1_a  DIR1_b &&
+	cat FILE6_a FILE4_a FILE2_a FILE1_a >expected8 &&
+	cat DIR4_a DIR2_a DIR1_a >>expected8 &&
+	ipfs cat "$HASH_FILE6"  >actual8 &&
+	ipfs cat "$HASH_FILE4" >>actual8 &&
+	ipfs cat "$HASH_FILE2" >>actual8 &&
+	ipfs cat "$HASH_FILE1" >>actual8 &&
+	ipfs ls "$HASH_DIR4"   >>actual8 &&
+	ipfs ls "$HASH_DIR2"   >>actual8 &&
+	ipfs ls "$HASH_DIR1"   >>actual8 &&
+	test_cmp actual8 expected8
+'
+
+# todo: make this faster somehow.
+test_expect_success "some are no longer there" '
 	test_must_fail ipfs cat "$HASH_FILE5" &&
 	test_must_fail ipfs cat "$HASH_FILE3" &&
 	test_must_fail ipfs ls "$HASH_DIR3"
@@ -196,6 +238,6 @@ test_expect_success "recursive pin fails without objects" '
 	grep "context exceeded" err_expected8
 '
 
-test_kill_ipfs_daemon
+# test_kill_ipfs_daemon
 
 test_done
