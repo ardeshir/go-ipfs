@@ -102,6 +102,7 @@ remains to be implemented.
 			for {
 				file, err := req.Files().NextFile()
 				if (err != nil && err != io.EOF) || file == nil {
+					res.SetError(debugerror.Wrap(err), cmds.ErrNormal)
 					return
 				}
 
